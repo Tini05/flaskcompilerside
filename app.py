@@ -8,7 +8,7 @@ import traceback
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://simplepythoncompiler.vercel.app"])
 
 process = None
 output_queue = queue.Queue()
@@ -89,14 +89,14 @@ def run_code():
 
     return Response(generate(), mimetype="text/plain")
 
-@app.route("/send_input", methods=["POST"])
+@app.route("/send_input", methods=["OPTIONS", "POST"])
 def send_input():
     """Handles user input and resumes execution."""
     global process
 
     if not process or process.poll() is not None:
         print("🚫 No running process found for input.")
-        return jsonify({"output": "No running process"}), 400
+        return jsonify({"output": "No running process"}), 200
 
     data = request.json
     user_input = data.get("input", "").strip()
@@ -121,6 +121,13 @@ def send_input():
     except Exception as e:
         print(f"❌ Error sending input: {e}")
         return jsonify({"output": f"Error: {str(e)}"}), 500
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True)
