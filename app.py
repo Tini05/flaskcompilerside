@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, Response
 import subprocess
 import sys
-import select
 import time
 import threading
 import queue
@@ -103,7 +102,7 @@ def run_code():
 
             elif process.poll() is not None:
                 break
-            time.sleep(0.03)
+            time.sleep(0.1)
 
     return Response(generate(), mimetype="text/plain")
 
