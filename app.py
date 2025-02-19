@@ -85,21 +85,27 @@ def run_code():
 
     threading.Thread(target=read_output, args=(process,), daemon=True).start()
 
+    import select
+
     def generate():
+        """Stream process output to the frontend."""
         while True:
-            if not output_queue.empty():
-                output = output_queue.get()
-                print(f"📤 Streaming output2: {output}")
-                yield f"{output}\n"
+            if process.poll() is not None:
+                break  # Exit if the process has finished
+    
+            # Use select to avoid blocking reads
+            readable, _, _ = select.select([process.stdout], [], [], 0.1)
+            if readable:
+                output = process.stdout.readline().strip()
+                if output:
+                    print(f"📤 Streaming output: {output}")  # Debugging
+                    yield f"{output}\n"
+    
+                    # If a prompt is detected, stop and wait for user input
+                    if output.strip().endswith("?") or output.strip().endswith(":"):
+                        input_event.clear()
+                        input_event.wait()
 
-                # If a prompt is detected, stop and wait for user input
-                if output.strip().endswith("?") or output.strip().endswith(":"):
-                    input_event.clear()
-                    input_event.wait()
-
-            elif process.poll() is not None:
-                break
-            time.sleep(0.1)
 
     return Response(generate(), mimetype="text/plain")
 
