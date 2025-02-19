@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, Response
 import subprocess
 import sys
+import select
 import time
 import threading
 import queue
@@ -8,18 +9,28 @@ import traceback
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://simplepythoncompiler.vercel.app"}})
+CORS(app, supports_credentials=True)
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = 'https://simplepythoncompiler.vercel.app'
-    response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
 
 process = None
 output_queue = queue.Queue()
 input_event = threading.Event()
+
+@app.route('/run', methods=['OPTIONS', 'POST'])
+@app.route('/send_input', methods=['OPTIONS', 'POST'])
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "CORS preflight passed"})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
 
 def read_output(proc):
     """Reads process output and adds it to the queue."""
@@ -92,7 +103,17 @@ def run_code():
 
             elif process.poll() is not None:
                 break
-            time.sleep(0.1)
+            readable, _, _ = select.select([process.stdout], [], [], 0.1)
+            if readable:
+                output = process.stdout.readline().strip()
+                if output:
+                    print(f"📤 Streaming output: {output}")  # Debugging
+                    yield f"{output}\n"
+    
+                    # If a prompt is detected, stop and wait for user input
+                    if output.strip().endswith("?") or output.strip().endswith(":"):
+                        input_event.clear()
+                        input_event.wait()
 
     return Response(generate(), mimetype="text/plain")
 
