@@ -91,21 +91,19 @@ def run_code():
 
     def generate():
         while True:
-            if process.poll() is not None:
-                break  # Exit if the process has finished
-    
-            # Use select to avoid blocking reads
-            readable, _, _ = select.select([process.stdout], [], [], 0.1)
-            if readable:
-                output = process.stdout.readline().strip()
-                if output:
-                    print(f"📤 Streaming output: {output}")  # Debugging
-                    yield f"{output}\n"
-    
-                    # If a prompt is detected, stop and wait for user input
-                    if output.strip().endswith("?") or output.strip().endswith(":"):
-                        input_event.clear()
-                        input_event.wait()
+            if not output_queue.empty():
+                output = output_queue.get()
+                print(f"📤 Streaming output2: {output}")
+                yield f"{output}\n"
+
+                # If a prompt is detected, stop and wait for user input
+                if output.strip().endswith("?") or output.strip().endswith(":"):
+                    input_event.clear()
+                    input_event.wait()
+
+            elif process.poll() is not None:
+                break
+            time.sleep(0.03)
 
     return Response(generate(), mimetype="text/plain")
 
