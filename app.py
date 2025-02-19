@@ -21,16 +21,6 @@ process = None
 output_queue = queue.Queue()
 input_event = threading.Event()
 
-@app.route('/run', methods=['OPTIONS', 'POST'])
-@app.route('/send_input', methods=['OPTIONS', 'POST'])
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS preflight passed"})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response, 200
-
 def read_output(proc):
     """Reads process output and adds it to the queue."""
     while True:
@@ -47,8 +37,15 @@ def read_output(proc):
         print(f"❌ Error output: {errors}")
         output_queue.put(errors)
 
-@app.route("/run", methods=["POST"])
+@app.route("/run", methods=["OPTIONS", "POST"])
 def run_code():
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "CORS preflight passed"})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
+        
     global process
 
     data = request.json
@@ -106,8 +103,15 @@ def run_code():
 
     return Response(generate(), mimetype="text/plain")
 
-@app.route("/send_input", methods=["POST"])
+@app.route("/send_input", methods=["OPTIONS", "POST"])
 def send_input():
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "CORS preflight passed"})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response, 200
+        
     """Handles user input and resumes execution."""
     global process
 
