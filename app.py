@@ -8,7 +8,14 @@ import traceback
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, origins=["https://simplepythoncompiler.vercel.app"])
+CORS(app, resources={r"/*": {"origins": "https://simplepythoncompiler.vercel.app"}})
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = 'https://simplepythoncompiler.vercel.app'
+    response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
 
 process = None
 output_queue = queue.Queue()
@@ -121,13 +128,6 @@ def send_input():
     except Exception as e:
         print(f"❌ Error sending input: {e}")
         return jsonify({"output": f"Error: {str(e)}"}), 500
-
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = 'https://simplepythoncompiler.vercel.app'  # Your frontend URL
-    response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    return response
 
 if __name__ == "__main__":
     app.run(debug=True)
