@@ -30,7 +30,7 @@ def read_output(proc):
         print(f"❌ Error output: {errors}")
         output_queue.put(errors)
 
-@app.route("/run", methods=["OPTIONS", "POST"])
+@app.route("/run", methods=["POST"])
 def run_code():
     global process
 
@@ -89,7 +89,7 @@ def run_code():
 
     return Response(generate(), mimetype="text/plain")
 
-@app.route("/send_input", methods=["OPTIONS", "POST"])
+@app.route("/send_input", methods=["POST"])
 def send_input():
     """Handles user input and resumes execution."""
     global process
