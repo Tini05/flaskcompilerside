@@ -30,7 +30,7 @@ def read_output(proc):
         print(f"❌ Error output: {errors}")
         output_queue.put(errors)
 
-@app.route("/run", methods=["POST"])
+@app.route("/run", methods=["OPTIONS", "POST"])
 def run_code():
     global process
 
@@ -96,7 +96,7 @@ def send_input():
 
     if not process or process.poll() is not None:
         print("🚫 No running process found for input.")
-        return jsonify({"output": "No running process"}), 200
+        return jsonify({"output": "No running process"}), 400
 
     data = request.json
     user_input = data.get("input", "").strip()
@@ -124,7 +124,7 @@ def send_input():
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Origin'] = 'https://simplepythoncompiler.vercel.app'  # Your frontend URL
     response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
