@@ -1,62 +1,45 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask
+from flask_socketio import SocketIO, emit
 import subprocess
 import sys
-import time
 import threading
 import queue
 import traceback
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
-
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    return response
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 process = None
 output_queue = queue.Queue()
 input_event = threading.Event()
 
 def read_output(proc):
-    """Reads process output and adds it to the queue."""
+    """Reads process output and emits it via WebSocket."""
     while True:
         output = proc.stdout.readline()
         if not output:
             break
         output = output.strip()
-        print(f"📤 Streaming output1: {output}")  # Debugging
+        print(f"📤 Streaming output: {output}")
+        socketio.emit("output", {"output": output})
         output_queue.put(output)
     
-    # Read and enqueue errors
     errors = proc.stderr.read().strip()
     if errors:
         print(f"❌ Error output: {errors}")
+        socketio.emit("output", {"output": errors})
         output_queue.put(errors)
 
-@app.route("/run", methods=["OPTIONS", "POST"])
-def run_code():
-    if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS preflight passed"})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response, 200
-        
+@socketio.on("run_code")
+def run_code(data):
     global process
-
-    data = request.json
     code = data.get("code", "")
     print(f"📥 Received code:\n{code}")
 
     if process and process.poll() is None:
         print("⚠ Killing existing process")
         process.kill()
-
-    # Clear any leftover output in the queue
+    
     while not output_queue.empty():
         output_queue.get()
 
@@ -85,63 +68,24 @@ def run_code():
 
     threading.Thread(target=read_output, args=(process,), daemon=True).start()
 
-    def generate():
-        while True:
-            if not output_queue.empty():
-                output = output_queue.get()
-                print(f"📤 Streaming output2: {output}")
-                yield f"{output}\n"
-
-                # If a prompt is detected, stop and wait for user input
-                if output.strip().endswith("?") or output.strip().endswith(":"):
-                    input_event.clear()
-                    input_event.wait()
-
-            elif process.poll() is not None:
-                break
-            time.sleep(0.03)
-
-    return Response(generate(), mimetype="text/plain")
-
-@app.route("/send_input", methods=["OPTIONS", "POST"])
-def send_input():
-    if request.method == "OPTIONS":
-        response = jsonify({"message": "CORS preflight passed"})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response, 200
-        
-    """Handles user input and resumes execution."""
+@socketio.on("send_input")
+def send_input(data):
     global process
-
     if not process or process.poll() is not None:
         print("🚫 No running process found for input.")
-        return jsonify({"output": "No running process"}), 400
-
-    data = request.json
+        emit("output", {"output": "No running process"})
+        return
+    
     user_input = data.get("input", "").strip()
     print(f"📥 Received user input: {user_input}")
-
+    
     try:
         process.stdin.write(user_input + "\n")
         process.stdin.flush()
-
-        # Allow process to continue
         input_event.set()
-        time.sleep(0.1)
-
-        # Collect next output
-        collected_output = []
-        while not output_queue.empty():
-            collected_output.append(output_queue.get())
-
-        final_output = "\n".join(collected_output)
-        print(f"📤 Sending back output: {final_output}")
-        return jsonify({"output": final_output})
     except Exception as e:
         print(f"❌ Error sending input: {e}")
-        return jsonify({"output": f"Error: {str(e)}"}), 500
+        emit("output", {"output": f"Error: {str(e)}"})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True, host="0.0.0.0", port=5000)
