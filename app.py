@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 import subprocess
 import sys
 import threading
@@ -8,6 +9,7 @@ import traceback
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+CORS(app, resources={r"/*": {"origins": "https://simplepythoncompiler.vercel.app"}})
 
 process = None
 output_queue = queue.Queue()
